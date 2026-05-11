@@ -41,6 +41,10 @@ app.post('/api/auth', (req, res) => {
 // Static files served before auth — login page needs to load
 app.use(express.static(path.join(__dirname, 'public')));
 
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
 // ── Summaries storage ──────────────────────────────────────────────────────────
 const SUMMARIES_DIR = process.env.STORAGE_PATH
   ? path.join(process.env.STORAGE_PATH, 'summaries')
