@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Workshop Summarizer · GetYourCFO</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --orange: #E8530A;
+      --orange-dim: rgba(232, 83, 10, 0.15);
+      --orange-border: rgba(232, 83, 10, 0.35);
+      --bg: #0A0A0A;
+      --surface: #111111;
+      --surface-2: #181818;
+      --border: rgba(255,255,255,0.07);
+      --text: #F0F0F0;
+      --text-muted: #888;
+      --text-dim: #555;
+      --radius: 6px;
+    }
+
+    html { font-size: 15px; }
+    body {
+      font-family: 'Space Grotesk', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    /* ── Header ── */
+    .header {
+      border-bottom: 1px solid var(--border);
+      padding: 0 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+      position: sticky;
+      top: 0;
+      background: rgba(10,10,10,0.9);
+      backdrop-filter: blur(12px);
+      z-index: 10;
+    }
+    .header-brand { display: flex; align-items: center; gap: 12px; }
+    .header-logo {
+      width: 28px; height: 28px;
+      background: var(--orange);
+      border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 13px; color: #fff;
+      letter-spacing: -0.5px;
+    }
+    .header-title { font-size: 0.9rem; font-weight: 600; color: var(--text); letter-spacing: 0.02em; }
+    .header-sub { font-size: 0.75rem; color: var(--text-muted); letter-spacing: 0.05em; text-transform: uppercase; }
+    .header-badge {
+      font-size: 0.7rem;
+      color: var(--orange);
+      border: 1px solid var(--orange-border);
+      padding: 3px 10px;
+      border-radius: 20px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    /* ── Layout ── */
+    .main { max-width: 900px; margin: 0 auto; padding: 48px 24px 80px; }
+
+    /* ── Knowledge Bar ── */
+    .knowledge-bar {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 20px;
+      margin-bottom: 32px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .kb-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      white-space: nowrap;
+    }
+    .kb-files { display: flex; gap: 8px; flex-wrap: wrap; flex: 1; }
+    .kb-chip {
+      font-size: 0.72rem;
+      color: var(--orange);
+      background: var(--orange-dim);
+      border: 1px solid var(--orange-border);
+      padding: 3px 10px;
+      border-radius: 20px;
+      white-space: nowrap;
+    }
+    .kb-empty { font-size: 0.78rem; color: var(--text-dim); font-style: italic; }
+
+    /* ── Section label style ── */
+    .section-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--orange);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    /* ── Input Card ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      margin-bottom: 24px;
+    }
+
+    /* ── Tabs ── */
+    .tabs { display: flex; gap: 0; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
+    .tab {
+      padding: 10px 20px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s, border-color 0.15s;
+      background: none;
+      border-top: none; border-left: none; border-right: none;
+      font-family: inherit;
+      margin-bottom: -1px;
+    }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--orange); border-bottom-color: var(--orange); }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    textarea {
+      width: 100%;
+      min-height: 220px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 0.875rem;
+      line-height: 1.7;
+      padding: 16px;
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    textarea:focus { border-color: var(--orange-border); }
+    textarea::placeholder { color: var(--text-dim); }
+
+    .file-drop {
+      border: 1.5px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 48px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .file-drop:hover, .file-drop.drag-over {
+      border-color: var(--orange-border);
+      background: var(--orange-dim);
+    }
+    .file-drop input { display: none; }
+    .file-drop-icon { font-size: 2rem; margin-bottom: 12px; opacity: 0.4; }
+    .file-drop-text { font-size: 0.85rem; color: var(--text-muted); }
+    .file-drop-text span { color: var(--orange); cursor: pointer; }
+    .file-drop-hint { font-size: 0.75rem; color: var(--text-dim); margin-top: 6px; }
+    .file-selected { margin-top: 12px; font-size: 0.8rem; color: var(--orange); }
+
+    /* ── Button ── */
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--orange);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      padding: 12px 28px;
+      font-family: inherit;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+      margin-top: 16px;
+      letter-spacing: 0.02em;
+    }
+    .btn-primary:hover { opacity: 0.88; }
+    .btn-primary:active { transform: scale(0.98); }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 20px;
+      font-family: inherit;
+      font-size: 0.82rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .btn-secondary:hover { color: var(--text); border-color: rgba(255,255,255,0.2); }
+
+    /* ── Loading ── */
+    .loading {
+      display: none;
+      padding: 40px;
+      text-align: center;
+    }
+    .loading.visible { display: block; }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 2.5px solid var(--border);
+      border-top-color: var(--orange);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-text { font-size: 0.85rem; color: var(--text-muted); }
+    .loading-sub { font-size: 0.75rem; color: var(--text-dim); margin-top: 6px; }
+
+    /* ── Error ── */
+    .error-box {
+      display: none;
+      background: rgba(220, 50, 50, 0.08);
+      border: 1px solid rgba(220, 50, 50, 0.25);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      font-size: 0.85rem;
+      color: #ff7070;
+      margin-top: 16px;
+    }
+    .error-box.visible { display: block; }
+
+    /* ── Results ── */
+    .results { display: none; }
+    .results.visible { display: block; }
+
+    .results-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .results-title { font-size: 1.1rem; font-weight: 600; }
+    .results-meta { font-size: 0.75rem; color: var(--text-dim); }
+
+    .result-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+    .result-section-title {
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: var(--orange);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .result-section-title::before {
+      content: '';
+      display: inline-block;
+      width: 3px;
+      height: 14px;
+      background: var(--orange);
+      border-radius: 2px;
+    }
+
+    .result-text { font-size: 0.9rem; color: var(--text); line-height: 1.7; }
+
+    .result-list { list-style: none; }
+    .result-list li {
+      font-size: 0.875rem;
+      color: var(--text);
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      line-height: 1.5;
+    }
+    .result-list li:last-child { border-bottom: none; }
+    .result-list li::before {
+      content: '→';
+      color: var(--orange);
+      font-size: 0.8rem;
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+
+    .action-item {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      margin-bottom: 10px;
+    }
+    .action-item:last-child { margin-bottom: 0; }
+    .action-task { font-size: 0.88rem; color: var(--text); margin-bottom: 8px; line-height: 1.5; }
+    .action-meta { display: flex; gap: 16px; flex-wrap: wrap; }
+    .action-badge {
+      font-size: 0.72rem;
+      padding: 2px 10px;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .action-badge.owner {
+      color: var(--text-muted);
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+    }
+    .action-badge.deadline {
+      color: var(--orange);
+      background: var(--orange-dim);
+      border: 1px solid var(--orange-border);
+    }
+
+    .usage-bar {
+      display: flex;
+      gap: 16px;
+      padding: 12px 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-top: 24px;
+      flex-wrap: wrap;
+    }
+    .usage-item { font-size: 0.72rem; color: var(--text-dim); }
+    .usage-item span { color: var(--text-muted); }
+
+    /* ── PDF Template (hidden) ── */
+    #pdf-template {
+      display: none;
+      font-family: 'Space Grotesk', sans-serif;
+      color: #1a1a1a;
+      background: #fff;
+      padding: 40px 48px;
+      max-width: 800px;
+    }
+    .pdf-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; padding-bottom: 16px; border-bottom: 2px solid #E8530A; }
+    .pdf-logo { display: flex; align-items: center; gap: 10px; }
+    .pdf-logo-box { width: 32px; height: 32px; background: #E8530A; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 13px; }
+    .pdf-brand { font-size: 14px; font-weight: 700; color: #1a1a1a; }
+    .pdf-sub { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 0.08em; }
+    .pdf-date { font-size: 11px; color: #888; }
+    .pdf-title { font-size: 20px; font-weight: 700; color: #1a1a1a; margin-bottom: 6px; }
+    .pdf-section { margin-bottom: 24px; }
+    .pdf-section-title { font-size: 9px; font-weight: 700; color: #E8530A; letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid #f0f0f0; }
+    .pdf-text { font-size: 11px; color: #333; line-height: 1.7; }
+    .pdf-list { list-style: none; }
+    .pdf-list li { font-size: 11px; color: #333; padding: 4px 0; display: flex; gap: 8px; }
+    .pdf-list li::before { content: '→'; color: #E8530A; flex-shrink: 0; }
+    .pdf-action { background: #f9f9f9; border-left: 3px solid #E8530A; padding: 10px 14px; margin-bottom: 8px; border-radius: 0 4px 4px 0; }
+    .pdf-action-task { font-size: 11px; color: #1a1a1a; margin-bottom: 5px; }
+    .pdf-action-meta { display: flex; gap: 12px; font-size: 10px; color: #888; }
+    .pdf-footer { margin-top: 40px; padding-top: 12px; border-top: 1px solid #eee; font-size: 9px; color: #bbb; text-align: center; }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-brand">
+    <div class="header-logo">GY</div>
+    <div>
+      <div class="header-title">Workshop Summarizer</div>
+      <div class="header-sub">by GetYourCFO</div>
+    </div>
+  </div>
+  <div class="header-badge">KI-Analyse</div>
+</header>
+
+<main class="main">
+
+  <!-- Knowledge Base Status -->
+  <div class="knowledge-bar" id="knowledge-bar">
+    <span class="kb-label">[ Wissensbasis ]</span>
+    <div class="kb-files" id="kb-files">
+      <span class="kb-empty">Wird geladen…</span>
+    </div>
+  </div>
+
+  <!-- Input Card -->
+  <div class="card">
+    <div class="section-label">[ 01 · Workshop-Inhalt ]</div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="text">Text eingeben</button>
+      <button class="tab" data-tab="file">Datei hochladen</button>
+    </div>
+
+    <div class="tab-panel active" id="tab-text">
+      <textarea id="workshop-text" placeholder="Workshop-Notizen, Transkript oder Protokoll hier einfügen…"></textarea>
+    </div>
+
+    <div class="tab-panel" id="tab-file">
+      <div class="file-drop" id="file-drop">
+        <input type="file" id="file-input" accept=".txt,.pdf" />
+        <div class="file-drop-icon">↑</div>
+        <div class="file-drop-text"><span onclick="document.getElementById('file-input').click()">Datei auswählen</span> oder hier ablegen</div>
+        <div class="file-drop-hint">.txt oder .pdf · max. 10 MB</div>
+        <div class="file-selected" id="file-selected" style="display:none"></div>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+      <button class="btn-primary" id="analyze-btn" onclick="analyze()">
+        <span>Zusammenfassung erstellen</span>
+      </button>
+      <button class="btn-secondary" id="clear-btn" onclick="clearAll()" style="display:none">Zurücksetzen</button>
+    </div>
+
+    <div class="error-box" id="error-box"></div>
+  </div>
+
+  <!-- Loading -->
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <div class="loading-text">Analyse läuft…</div>
+    <div class="loading-sub">Claude verarbeitet den Workshop-Inhalt</div>
+  </div>
+
+  <!-- Results -->
+  <div class="results" id="results">
+    <div class="results-header">
+      <div>
+        <div class="section-label" style="margin-bottom:4px">[ Ergebnis ]</div>
+        <div class="results-title">Workshop-Zusammenfassung</div>
+      </div>
+      <button class="btn-secondary" onclick="exportPdf()">
+        ↓ PDF exportieren
+      </button>
+    </div>
+
+    <div id="section-kontext" class="result-section">
+      <div class="result-section-title">Kontext &amp; Ziel</div>
+      <div class="result-text" id="val-kontext"></div>
+    </div>
+
+    <div id="section-entscheidungen" class="result-section">
+      <div class="result-section-title">Kernentscheidungen</div>
+      <ul class="result-list" id="val-entscheidungen"></ul>
+    </div>
+
+    <div id="section-aktionen" class="result-section">
+      <div class="result-section-title">Aktionspunkte</div>
+      <div id="val-aktionen"></div>
+    </div>
+
+    <div id="section-fragen" class="result-section">
+      <div class="result-section-title">Offene Fragen</div>
+      <ul class="result-list" id="val-fragen"></ul>
+    </div>
+
+    <div id="section-okr" class="result-section">
+      <div class="result-section-title">OKR &amp; Strategie-Insights</div>
+      <ul class="result-list" id="val-okr"></ul>
+    </div>
+
+    <div id="section-stimmung" class="result-section">
+      <div class="result-section-title">Stimmung &amp; Team-Alignment</div>
+      <div class="result-text" id="val-stimmung"></div>
+    </div>
+
+    <div class="usage-bar" id="usage-bar"></div>
+  </div>
+
+</main>
+
+<!-- Hidden PDF template -->
+<div id="pdf-template"></div>
+
+<script>
+  // Tab switching
+  document.querySelectorAll('.tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  // File drop zone
+  const fileDrop = document.getElementById('file-drop');
+  const fileInput = document.getElementById('file-input');
+  const fileSelected = document.getElementById('file-selected');
+
+  fileDrop.addEventListener('dragover', e => { e.preventDefault(); fileDrop.classList.add('drag-over'); });
+  fileDrop.addEventListener('dragleave', () => fileDrop.classList.remove('drag-over'));
+  fileDrop.addEventListener('drop', e => {
+    e.preventDefault();
+    fileDrop.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) setFile(file);
+  });
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) setFile(fileInput.files[0]);
+  });
+
+  function setFile(file) {
+    fileInput._selectedFile = file;
+    fileSelected.textContent = '✓ ' + file.name;
+    fileSelected.style.display = 'block';
+  }
+
+  // Load knowledge base
+  async function loadKnowledge() {
+    try {
+      const res = await fetch('/api/knowledge');
+      const data = await res.json();
+      const container = document.getElementById('kb-files');
+      if (data.files.length === 0) {
+        container.innerHTML = '<span class="kb-empty">Keine Wissensbasis-Dateien gefunden (knowledge/ Ordner leer)</span>';
+      } else {
+        container.innerHTML = data.files.map(f => `<span class="kb-chip">${f}</span>`).join('');
+      }
+    } catch {
+      document.getElementById('kb-files').innerHTML = '<span class="kb-empty">Fehler beim Laden der Wissensbasis</span>';
+    }
+  }
+  loadKnowledge();
+
+  let lastSummary = null;
+
+  async function analyze() {
+    const text = document.getElementById('workshop-text').value.trim();
+    const file = fileInput._selectedFile;
+    const activeTab = document.querySelector('.tab.active').dataset.tab;
+
+    hideError();
+    document.getElementById('results').classList.remove('visible');
+
+    if (activeTab === 'text' && !text) {
+      showError('Bitte gib Workshop-Notizen ein oder lade eine Datei hoch.');
+      return;
+    }
+    if (activeTab === 'file' && !file) {
+      showError('Bitte wähle eine .txt-Datei aus.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      let res;
+      if (activeTab === 'file' && file) {
+        const fd = new FormData();
+        fd.append('file', file);
+        res = await fetch('/api/summarize', { method: 'POST', body: fd });
+      } else {
+        res = await fetch('/api/summarize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text }),
+        });
+      }
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Unbekannter Fehler');
+
+      lastSummary = data.summary;
+      renderResults(data.summary, data.usage);
+      document.getElementById('clear-btn').style.display = 'inline-flex';
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function renderResults(s, usage) {
+    // Kontext & Ziel
+    document.getElementById('val-kontext').textContent = s.kontext_ziel || '–';
+
+    // Kernentscheidungen
+    const entschEl = document.getElementById('val-entscheidungen');
+    entschEl.innerHTML = (s.kernentscheidungen || []).map(e => `<li>${escHtml(e)}</li>`).join('') || '<li>Keine Kernentscheidungen identifiziert</li>';
+
+    // Aktionspunkte
+    const aktEl = document.getElementById('val-aktionen');
+    if (!s.aktionspunkte || s.aktionspunkte.length === 0) {
+      aktEl.innerHTML = '<div style="font-size:0.85rem;color:var(--text-dim)">Keine Aktionspunkte erfasst</div>';
+    } else {
+      aktEl.innerHTML = s.aktionspunkte.map(a => `
+        <div class="action-item">
+          <div class="action-task">${escHtml(a.aufgabe)}</div>
+          <div class="action-meta">
+            ${a.verantwortlich ? `<span class="action-badge owner">👤 ${escHtml(a.verantwortlich)}</span>` : ''}
+            ${a.frist ? `<span class="action-badge deadline">📅 ${escHtml(a.frist)}</span>` : ''}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Offene Fragen
+    const fragenEl = document.getElementById('val-fragen');
+    fragenEl.innerHTML = (s.offene_fragen || []).map(f => `<li>${escHtml(f)}</li>`).join('') || '<li>Keine offenen Fragen dokumentiert</li>';
+
+    // OKR & Strategie
+    const okrEl = document.getElementById('val-okr');
+    okrEl.innerHTML = (s.okr_strategie_insights || []).map(i => `<li>${escHtml(i)}</li>`).join('') || '<li>Keine OKR-Relevanz identifiziert</li>';
+
+    // Stimmung
+    document.getElementById('val-stimmung').textContent = s.stimmung_team || '–';
+
+    // Usage
+    if (usage) {
+      const bar = document.getElementById('usage-bar');
+      const cached = usage.cache_read > 0 ? ` · <span>Cache-Hits:</span> ${usage.cache_read.toLocaleString()}` : '';
+      bar.innerHTML = `
+        <div class="usage-item"><span>Input-Tokens:</span> ${usage.input_tokens.toLocaleString()}</div>
+        <div class="usage-item"><span>Output-Tokens:</span> ${usage.output_tokens.toLocaleString()}</div>
+        ${usage.cache_read > 0 ? `<div class="usage-item"><span>Cache gelesen:</span> ${usage.cache_read.toLocaleString()}</div>` : ''}
+        ${usage.cache_created > 0 ? `<div class="usage-item"><span>Cache erstellt:</span> ${usage.cache_created.toLocaleString()}</div>` : ''}
+        <div class="usage-item" style="margin-left:auto"><span>Modell:</span> claude-sonnet-4-6</div>
+      `;
+    }
+
+    document.getElementById('results').classList.add('visible');
+    document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function clearAll() {
+    document.getElementById('workshop-text').value = '';
+    fileInput._selectedFile = null;
+    fileInput.value = '';
+    fileSelected.style.display = 'none';
+    fileSelected.textContent = '';
+    document.getElementById('results').classList.remove('visible');
+    document.getElementById('clear-btn').style.display = 'none';
+    hideError();
+    lastSummary = null;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function setLoading(on) {
+    document.getElementById('loading').classList.toggle('visible', on);
+    document.getElementById('analyze-btn').disabled = on;
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('error-box');
+    el.textContent = msg;
+    el.classList.add('visible');
+  }
+
+  function hideError() {
+    document.getElementById('error-box').classList.remove('visible');
+  }
+
+  function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function exportPdf() {
+    if (!lastSummary) return;
+    const s = lastSummary;
+    const now = new Date().toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric' });
+
+    const actionsHtml = (s.aktionspunkte || []).map(a => `
+      <div class="pdf-action">
+        <div class="pdf-action-task">${escHtml(a.aufgabe)}</div>
+        <div class="pdf-action-meta">
+          ${a.verantwortlich ? `<span>👤 ${escHtml(a.verantwortlich)}</span>` : ''}
+          ${a.frist ? `<span>📅 ${escHtml(a.frist)}</span>` : ''}
+        </div>
+      </div>
+    `).join('') || '<p class="pdf-text" style="color:#999">Keine Aktionspunkte</p>';
+
+    const listHtml = (arr, fallback) =>
+      (arr && arr.length)
+        ? `<ul class="pdf-list">${arr.map(i => `<li>${escHtml(i)}</li>`).join('')}</ul>`
+        : `<p class="pdf-text" style="color:#999">${fallback}</p>`;
+
+    const tmpl = document.getElementById('pdf-template');
+    tmpl.innerHTML = `
+      <div class="pdf-header">
+        <div class="pdf-logo">
+          <div class="pdf-logo-box">GY</div>
+          <div>
+            <div class="pdf-brand">GetYourCFO</div>
+            <div class="pdf-sub">Workshop Summarizer</div>
+          </div>
+        </div>
+        <div class="pdf-date">Erstellt: ${now}</div>
+      </div>
+      <div class="pdf-title">Workshop-Zusammenfassung</div>
+
+      <div class="pdf-section">
+        <div class="pdf-section-title">[ 01 · Kontext &amp; Ziel ]</div>
+        <p class="pdf-text">${escHtml(s.kontext_ziel || '–')}</p>
+      </div>
+
+      <div class="pdf-section">
+        <div class="pdf-section-title">[ 02 · Kernentscheidungen ]</div>
+        ${listHtml(s.kernentscheidungen, 'Keine Kernentscheidungen')}
+      </div>
+
+      <div class="pdf-section">
+        <div class="pdf-section-title">[ 03 · Aktionspunkte ]</div>
+        ${actionsHtml}
+      </div>
+
+      <div class="pdf-section">
+        <div class="pdf-section-title">[ 04 · Offene Fragen ]</div>
+        ${listHtml(s.offene_fragen, 'Keine offenen Fragen')}
+      </div>
+
+      <div class="pdf-section">
+        <div class="pdf-section-title">[ 05 · OKR &amp; Strategie-Insights ]</div>
+        ${listHtml(s.okr_strategie_insights, 'Keine OKR-Relevanz')}
+      </div>
+
+      <div class="pdf-section">
+        <div class="pdf-section-title">[ 06 · Stimmung &amp; Team-Alignment ]</div>
+        <p class="pdf-text">${escHtml(s.stimmung_team || '–')}</p>
+      </div>
+
+      <div class="pdf-footer">Vertraulich · Workshop Summarizer by GetYourCFO · ${now}</div>
+    `;
+
+    tmpl.style.display = 'block';
+    html2pdf().set({
+      margin: 0,
+      filename: `workshop-zusammenfassung-${now.replace(/\./g,'-')}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    }).from(tmpl).save().then(() => {
+      tmpl.style.display = 'none';
+    });
+  }
+</script>
+</body>
+</html>
