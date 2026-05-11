@@ -159,7 +159,7 @@ app.post('/api/summarize', upload.single('file'), async (req, res) => {
 const PORT = process.env.PORT || 8080;
 
 loadKnowledgeBase().then(() => {
-  app.listen(PORT, () => {
-    console.log(`Workshop Summarizer läuft auf http://localhost:${PORT}`);
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Workshop Summarizer läuft auf http://0.0.0.0:${PORT}`);
   });
 });
