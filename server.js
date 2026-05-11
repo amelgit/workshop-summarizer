@@ -3,6 +3,7 @@ import express from 'express';
 import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -11,9 +12,36 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 app.use(express.json({ limit: '10mb' }));
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+const APP_PASSWORD = process.env.APP_PASSWORD;
+
+function makeToken(password) {
+  return crypto.createHash('sha256').update('gycfo:' + password).digest('hex');
+}
+
+const VALID_TOKEN = APP_PASSWORD ? makeToken(APP_PASSWORD) : null;
+
+function requireAuth(req, res, next) {
+  if (!VALID_TOKEN) return next();
+  const token = req.headers['x-app-token'];
+  if (token === VALID_TOKEN) return next();
+  res.status(401).json({ error: 'Nicht autorisiert' });
+}
+
+app.post('/api/auth', (req, res) => {
+  if (!VALID_TOKEN) return res.json({ ok: true, token: null });
+  const { password } = req.body;
+  if (!password || makeToken(password) !== VALID_TOKEN) {
+    return res.status(401).json({ error: 'Falsches Passwort' });
+  }
+  res.json({ ok: true, token: VALID_TOKEN });
+});
+
+// Static files served before auth — login page needs to load
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Load knowledge base at startup
+// ── Knowledge base ─────────────────────────────────────────────────────────────
 let knowledgeFiles = [];
 let knowledgeText = '';
 
@@ -77,11 +105,12 @@ Regeln:
 - Extrahiere nur tatsächlich genannte Informationen, erfinde nichts
 - Bei fehlenden Informationen für "verantwortlich" oder "frist" setze null`;
 
-app.get('/api/knowledge', (req, res) => {
+// ── API routes (protected) ─────────────────────────────────────────────────────
+app.get('/api/knowledge', requireAuth, (req, res) => {
   res.json({ files: knowledgeFiles, count: knowledgeFiles.length });
 });
 
-app.post('/api/summarize', upload.single('file'), async (req, res) => {
+app.post('/api/summarize', requireAuth, upload.single('file'), async (req, res) => {
   let workshopContent = '';
 
   if (req.file) {
@@ -132,7 +161,6 @@ app.post('/api/summarize', upload.single('file'), async (req, res) => {
     try {
       summary = JSON.parse(rawText);
     } catch {
-      // Try extracting JSON from response if Claude wrapped it
       const match = rawText.match(/\{[\s\S]*\}/);
       if (match) {
         summary = JSON.parse(match[0]);
@@ -161,5 +189,6 @@ const PORT = process.env.PORT || 8080;
 loadKnowledgeBase().then(() => {
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Workshop Summarizer läuft auf http://0.0.0.0:${PORT}`);
+    if (!VALID_TOKEN) console.log('Hinweis: APP_PASSWORD nicht gesetzt — Passwortschutz deaktiviert');
   });
 });

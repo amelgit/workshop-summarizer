@@ -358,6 +358,54 @@
     .usage-item { font-size: 0.72rem; color: var(--text-dim); }
     .usage-item span { color: var(--text-muted); }
 
+    /* ── Login overlay ── */
+    #login-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    #login-overlay.visible { display: flex; }
+    .login-box {
+      width: 100%;
+      max-width: 380px;
+      padding: 40px 36px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      text-align: center;
+    }
+    .login-logo {
+      width: 40px; height: 40px;
+      background: var(--orange);
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 15px; color: #fff;
+      margin: 0 auto 20px;
+    }
+    .login-title { font-size: 1.05rem; font-weight: 600; margin-bottom: 4px; }
+    .login-sub { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 28px; }
+    .login-input {
+      width: 100%;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.9rem;
+      padding: 12px 14px;
+      outline: none;
+      text-align: center;
+      letter-spacing: 0.05em;
+      margin-bottom: 14px;
+      transition: border-color 0.15s;
+    }
+    .login-input:focus { border-color: var(--orange-border); }
+    .login-error { font-size: 0.78rem; color: #ff7070; margin-bottom: 12px; min-height: 1.2em; }
+
     /* ── PDF Template (hidden) ── */
     #pdf-template {
       display: none;
@@ -387,6 +435,18 @@
   </style>
 </head>
 <body>
+
+<!-- Login overlay -->
+<div id="login-overlay">
+  <div class="login-box">
+    <div class="login-logo">GY</div>
+    <div class="login-title">Workshop Summarizer</div>
+    <div class="login-sub">by GetYourCFO · Bitte Passwort eingeben</div>
+    <input class="login-input" id="login-input" type="password" placeholder="Passwort" autocomplete="current-password" />
+    <div class="login-error" id="login-error"></div>
+    <button class="btn-primary" style="width:100%;justify-content:center" onclick="submitLogin()">Anmelden</button>
+  </div>
+</div>
 
 <header class="header">
   <div class="header-brand">
@@ -500,7 +560,66 @@
 <div id="pdf-template"></div>
 
 <script>
-  // Tab switching
+  // ── Auth ──────────────────────────────────────────────────────────────────
+  let appToken = sessionStorage.getItem('app_token');
+
+  async function initAuth() {
+    // Check if server requires a password
+    const res = await fetch('/api/knowledge', {
+      headers: appToken ? { 'x-app-token': appToken } : {},
+    });
+    if (res.status === 401) {
+      sessionStorage.removeItem('app_token');
+      appToken = null;
+      document.getElementById('login-overlay').classList.add('visible');
+    } else {
+      onAuthenticated(await res.json());
+    }
+  }
+
+  async function submitLogin() {
+    const password = document.getElementById('login-input').value;
+    const errEl = document.getElementById('login-error');
+    errEl.textContent = '';
+    if (!password) { errEl.textContent = 'Bitte Passwort eingeben'; return; }
+
+    const res = await fetch('/api/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Falsches Passwort'; return; }
+
+    appToken = data.token;
+    if (appToken) sessionStorage.setItem('app_token', appToken);
+    document.getElementById('login-overlay').classList.remove('visible');
+    renderKnowledge({ files: [], count: 0 });
+    loadKnowledge();
+  }
+
+  document.getElementById('login-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') submitLogin();
+  });
+
+  function authHeaders() {
+    return appToken ? { 'x-app-token': appToken } : {};
+  }
+
+  function onAuthenticated(knowledgeData) {
+    renderKnowledge(knowledgeData);
+  }
+
+  function renderKnowledge(data) {
+    const container = document.getElementById('kb-files');
+    if (data.files.length === 0) {
+      container.innerHTML = '<span class="kb-empty">Keine Wissensbasis-Dateien gefunden (knowledge/ Ordner leer)</span>';
+    } else {
+      container.innerHTML = data.files.map(f => `<span class="kb-chip">${f}</span>`).join('');
+    }
+  }
+
+  // ── Tab switching
   document.querySelectorAll('.tab').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -536,19 +655,15 @@
   // Load knowledge base
   async function loadKnowledge() {
     try {
-      const res = await fetch('/api/knowledge');
+      const res = await fetch('/api/knowledge', { headers: authHeaders() });
       const data = await res.json();
-      const container = document.getElementById('kb-files');
-      if (data.files.length === 0) {
-        container.innerHTML = '<span class="kb-empty">Keine Wissensbasis-Dateien gefunden (knowledge/ Ordner leer)</span>';
-      } else {
-        container.innerHTML = data.files.map(f => `<span class="kb-chip">${f}</span>`).join('');
-      }
+      renderKnowledge(data);
     } catch {
       document.getElementById('kb-files').innerHTML = '<span class="kb-empty">Fehler beim Laden der Wissensbasis</span>';
     }
   }
-  loadKnowledge();
+
+  initAuth();
 
   let lastSummary = null;
 
@@ -576,11 +691,11 @@
       if (activeTab === 'file' && file) {
         const fd = new FormData();
         fd.append('file', file);
-        res = await fetch('/api/summarize', { method: 'POST', body: fd });
+        res = await fetch('/api/summarize', { method: 'POST', headers: authHeaders(), body: fd });
       } else {
         res = await fetch('/api/summarize', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...authHeaders() },
           body: JSON.stringify({ text }),
         });
       }
