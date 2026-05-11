@@ -186,15 +186,15 @@
 
 <script>
   // ── Auth ────────────────────────────────────────────────────────────────────
-  let appToken = sessionStorage.getItem('app_token');
+  let adminToken = sessionStorage.getItem('admin_token');
 
   async function initAuth() {
     const res = await fetch('/api/admin/summaries', {
-      headers: appToken ? { 'x-app-token': appToken } : {},
+      headers: adminToken ? { 'x-admin-token': adminToken } : {},
     });
     if (res.status === 401) {
-      sessionStorage.removeItem('app_token');
-      appToken = null;
+      sessionStorage.removeItem('admin_token');
+      adminToken = null;
       document.getElementById('login-overlay').classList.add('visible');
     } else {
       const data = await res.json();
@@ -208,7 +208,7 @@
     errEl.textContent = '';
     if (!password) { errEl.textContent = 'Bitte Passwort eingeben'; return; }
 
-    const res = await fetch('/api/auth', {
+    const res = await fetch('/api/admin/auth', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password }),
@@ -216,8 +216,8 @@
     const data = await res.json();
     if (!res.ok) { errEl.textContent = data.error || 'Falsches Passwort'; return; }
 
-    appToken = data.token;
-    if (appToken) sessionStorage.setItem('app_token', appToken);
+    adminToken = data.token;
+    if (adminToken) sessionStorage.setItem('admin_token', adminToken);
     document.getElementById('login-overlay').classList.remove('visible');
     loadSummaries();
   }
@@ -227,7 +227,7 @@
   });
 
   function authHeaders() {
-    return appToken ? { 'x-app-token': appToken } : {};
+    return adminToken ? { 'x-admin-token': adminToken } : {};
   }
 
   // ── List ────────────────────────────────────────────────────────────────────

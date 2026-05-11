@@ -15,27 +15,43 @@ app.use(express.json({ limit: '10mb' }));
 
 // ── Auth ───────────────────────────────────────────────────────────────────────
 const APP_PASSWORD = process.env.APP_PASSWORD;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
-function makeToken(password) {
-  return crypto.createHash('sha256').update('gycfo:' + password).digest('hex');
+function makeToken(prefix, password) {
+  return crypto.createHash('sha256').update(prefix + ':' + password).digest('hex');
 }
 
-const VALID_TOKEN = APP_PASSWORD ? makeToken(APP_PASSWORD) : null;
+const VALID_TOKEN = APP_PASSWORD ? makeToken('gycfo', APP_PASSWORD) : null;
+const VALID_ADMIN_TOKEN = ADMIN_PASSWORD ? makeToken('gycfo-admin', ADMIN_PASSWORD) : null;
 
 function requireAuth(req, res, next) {
   if (!VALID_TOKEN) return next();
-  const token = req.headers['x-app-token'];
-  if (token === VALID_TOKEN) return next();
+  if (req.headers['x-app-token'] === VALID_TOKEN) return next();
+  res.status(401).json({ error: 'Nicht autorisiert' });
+}
+
+function requireAdminAuth(req, res, next) {
+  if (!VALID_ADMIN_TOKEN) return next();
+  if (req.headers['x-admin-token'] === VALID_ADMIN_TOKEN) return next();
   res.status(401).json({ error: 'Nicht autorisiert' });
 }
 
 app.post('/api/auth', (req, res) => {
   if (!VALID_TOKEN) return res.json({ ok: true, token: null });
   const { password } = req.body;
-  if (!password || makeToken(password) !== VALID_TOKEN) {
+  if (!password || makeToken('gycfo', password) !== VALID_TOKEN) {
     return res.status(401).json({ error: 'Falsches Passwort' });
   }
   res.json({ ok: true, token: VALID_TOKEN });
+});
+
+app.post('/api/admin/auth', (req, res) => {
+  if (!VALID_ADMIN_TOKEN) return res.json({ ok: true, token: null });
+  const { password } = req.body;
+  if (!password || makeToken('gycfo-admin', password) !== VALID_ADMIN_TOKEN) {
+    return res.status(401).json({ error: 'Falsches Passwort' });
+  }
+  res.json({ ok: true, token: VALID_ADMIN_TOKEN });
 });
 
 // Static files served before auth — login page needs to load
@@ -85,7 +101,7 @@ function saveSummary(summary) {
   return record;
 }
 
-app.get('/api/admin/summaries', requireAuth, (req, res) => {
+app.get('/api/admin/summaries', requireAdminAuth, (req, res) => {
   try {
     const files = fs.readdirSync(SUMMARIES_DIR)
       .filter(f => f.endsWith('.json'))
@@ -104,7 +120,7 @@ app.get('/api/admin/summaries', requireAuth, (req, res) => {
   }
 });
 
-app.get('/api/admin/summaries/:filename', requireAuth, (req, res) => {
+app.get('/api/admin/summaries/:filename', requireAdminAuth, (req, res) => {
   const filename = path.basename(req.params.filename);
   if (!filename.endsWith('.json')) return res.status(400).json({ error: 'Ungültige Datei' });
   const filePath = path.join(SUMMARIES_DIR, filename);
