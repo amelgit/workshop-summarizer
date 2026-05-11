@@ -13,7 +13,7 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 app.use(express.json({ limit: '10mb' }));
 
-// ── Auth ──────────────────────────────────────────────────────────────────────
+// ── Auth ───────────────────────────────────────────────────────────────────────
 const APP_PASSWORD = process.env.APP_PASSWORD;
 
 function makeToken(password) {
@@ -40,6 +40,74 @@ app.post('/api/auth', (req, res) => {
 
 // Static files served before auth — login page needs to load
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ── Summaries storage ──────────────────────────────────────────────────────────
+const SUMMARIES_DIR = process.env.STORAGE_PATH
+  ? path.join(process.env.STORAGE_PATH, 'summaries')
+  : path.join(__dirname, 'summaries');
+
+if (!fs.existsSync(SUMMARIES_DIR)) {
+  fs.mkdirSync(SUMMARIES_DIR, { recursive: true });
+  console.log(`Summaries directory created: ${SUMMARIES_DIR}`);
+}
+
+function slugify(text) {
+  return String(text)
+    .toLowerCase()
+    .replace(/[äöüß]/g, c => ({ ä: 'ae', ö: 'oe', ü: 'ue', ß: 'ss' }[c]))
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 40);
+}
+
+function saveSummary(summary) {
+  const now = new Date();
+  const ts = now.toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const titleSource = summary.kontext_ziel || '';
+  const titleWords = titleSource.split(/\s+/).slice(0, 6).join(' ');
+  const slug = slugify(titleWords) || 'workshop';
+  const id = `${ts}_${slug}`;
+  const filename = `${id}.json`;
+
+  const record = {
+    id,
+    timestamp: now.toISOString(),
+    title: titleWords || 'Workshop',
+    summary,
+  };
+
+  fs.writeFileSync(path.join(SUMMARIES_DIR, filename), JSON.stringify(record, null, 2), 'utf-8');
+  console.log(`Summary saved: ${filename}`);
+  return record;
+}
+
+app.get('/api/admin/summaries', requireAuth, (req, res) => {
+  try {
+    const files = fs.readdirSync(SUMMARIES_DIR)
+      .filter(f => f.endsWith('.json'))
+      .sort()
+      .reverse();
+
+    const list = files.map(f => {
+      const raw = fs.readFileSync(path.join(SUMMARIES_DIR, f), 'utf-8');
+      const { id, timestamp, title } = JSON.parse(raw);
+      return { id, timestamp, title, filename: f };
+    });
+
+    res.json(list);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/summaries/:filename', requireAuth, (req, res) => {
+  const filename = path.basename(req.params.filename);
+  if (!filename.endsWith('.json')) return res.status(400).json({ error: 'Ungültige Datei' });
+  const filePath = path.join(SUMMARIES_DIR, filename);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Nicht gefunden' });
+  const record = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+  res.json(record);
+});
 
 // ── Knowledge base ─────────────────────────────────────────────────────────────
 let knowledgeFiles = [];
@@ -169,8 +237,11 @@ app.post('/api/summarize', requireAuth, upload.single('file'), async (req, res) 
       }
     }
 
+    const saved = saveSummary(summary);
+
     res.json({
       summary,
+      savedId: saved.id,
       usage: {
         input_tokens: response.usage.input_tokens,
         output_tokens: response.usage.output_tokens,
