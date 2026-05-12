@@ -54,12 +54,82 @@ app.post('/api/admin/auth', (req, res) => {
   res.json({ ok: true, token: VALID_ADMIN_TOKEN });
 });
 
-// Static files served before auth — login page needs to load
+// Static files
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
+
+// ── Analysis modules ───────────────────────────────────────────────────────────
+const MODULE_SCHEMAS = {
+  workshop_summary: {
+    instruction: 'Erstelle eine strukturierte Workshop-Zusammenfassung mit Kontext & Ziel, Kernentscheidungen, Aktionspunkten (mit Verantwortlichem und Frist), offenen Fragen, OKR-relevanten Erkenntnissen und Teamstimmung.',
+    schema: `"workshop_summary": {
+    "kontext_ziel": "2-4 Sätze zu Kontext und Ziel",
+    "kernentscheidungen": ["Entscheidung 1"],
+    "aktionspunkte": [{"aufgabe": "Aufgabe", "verantwortlich": "Name oder null", "frist": "Datum oder null"}],
+    "offene_fragen": ["Frage 1"],
+    "okr_strategie_insights": ["Insight 1"],
+    "stimmung_team": "2-3 Sätze zur Teamstimmung"
+  }`,
+  },
+  okr_derivation: {
+    instruction: 'Leite 2–4 konkrete OKRs aus dem Workshop-Inhalt ab. Objectives qualitativ-inspirierend, Key Results spezifisch und messbar.',
+    schema: `"okr_derivation": {
+    "objectives": [
+      {"objective": "Qualitatives Ziel", "key_results": ["KR 1", "KR 2", "KR 3"], "begruendung": "Warum dieses OKR"}
+    ]
+  }`,
+  },
+  critical_analysis: {
+    instruction: 'Analysiere kritisch: Was wird übersehen? Welche Risiken bestehen? Welche Widersprüche gibt es? Gib klare Handlungsempfehlungen.',
+    schema: `"critical_analysis": {
+    "blinde_flecken": ["Übersehener Aspekt 1"],
+    "risiken": ["Risiko 1"],
+    "widersprueche": ["Widerspruch 1"],
+    "empfehlungen": ["Empfehlung 1"]
+  }`,
+  },
+  strategic_gaps: {
+    instruction: 'Identifiziere strategische Lücken: Wo ist die Strategie unvollständig, unklar oder widersprüchlich? Bewerte Schweregrad (hoch/mittel/niedrig).',
+    schema: `"strategic_gaps": {
+    "luecken": [{"bereich": "Bereich", "beschreibung": "Beschreibung der Lücke", "schwere": "hoch|mittel|niedrig"}],
+    "fehlende_elemente": ["Fehlendes Element 1"]
+  }`,
+  },
+  team_alignment: {
+    instruction: 'Beurteile das Team-Alignment: Wo besteht Einigkeit, wo Spannungsfelder? Gesamtbewertung und konkrete Empfehlung.',
+    schema: `"team_alignment": {
+    "alignment_bewertung": "2-3 Sätze zur Gesamteinschätzung",
+    "einigkeit_themen": ["Thema mit Einigkeit 1"],
+    "spannungsfelder": ["Spannungsfeld 1"],
+    "empfehlung": "Konkrete Empfehlung"
+  }`,
+  },
+};
+
+function buildSystemPrompt(selectedModules) {
+  const valid = selectedModules.filter(m => MODULE_SCHEMAS[m]);
+  const instructions = valid.map((m, i) => `${i + 1}. ${MODULE_SCHEMAS[m].instruction}`).join('\n');
+  const schemas = valid.map(m => MODULE_SCHEMAS[m].schema).join(',\n  ');
+
+  return `Du bist ein erfahrener Business-Analyst und Strategie-Berater bei GetYourCFO. Analysiere den Workshop-Inhalt und erstelle folgende Analysen:
+
+${instructions}
+
+Gib ausschließlich ein JSON-Objekt zurück mit genau diesen Keys: ${valid.join(', ')}
+
+{
+  ${schemas}
+}
+
+Regeln:
+- Antworte NUR mit dem JSON-Objekt, ohne Markdown-Codeblöcke oder zusätzlichen Text
+- Alle Werte auf Deutsch
+- Extrahiere nur tatsächlich genannte Informationen, erfinde nichts
+- Nullable Felder (verantwortlich, frist) auf null setzen wenn unbekannt`;
+}
 
 // ── Summaries storage ──────────────────────────────────────────────────────────
 const SUMMARIES_DIR = process.env.STORAGE_PATH
@@ -80,24 +150,27 @@ function slugify(text) {
     .slice(0, 40);
 }
 
-function saveSummary(summary) {
+function saveSummary(results, selectedModules) {
   const now = new Date();
   const ts = now.toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const titleSource = summary.kontext_ziel || '';
+  const titleSource = results.workshop_summary?.kontext_ziel
+    || results.okr_derivation?.objectives?.[0]?.objective
+    || results.team_alignment?.alignment_bewertung
+    || '';
   const titleWords = titleSource.split(/\s+/).slice(0, 6).join(' ');
   const slug = slugify(titleWords) || 'workshop';
   const id = `${ts}_${slug}`;
-  const filename = `${id}.json`;
 
   const record = {
     id,
     timestamp: now.toISOString(),
     title: titleWords || 'Workshop',
-    summary,
+    modules: selectedModules,
+    results,
   };
 
-  fs.writeFileSync(path.join(SUMMARIES_DIR, filename), JSON.stringify(record, null, 2), 'utf-8');
-  console.log(`Summary saved: ${filename}`);
+  fs.writeFileSync(path.join(SUMMARIES_DIR, `${id}.json`), JSON.stringify(record, null, 2), 'utf-8');
+  console.log(`Summary saved: ${id}.json`);
   return record;
 }
 
@@ -110,8 +183,8 @@ app.get('/api/admin/summaries', requireAdminAuth, (req, res) => {
 
     const list = files.map(f => {
       const raw = fs.readFileSync(path.join(SUMMARIES_DIR, f), 'utf-8');
-      const { id, timestamp, title } = JSON.parse(raw);
-      return { id, timestamp, title, filename: f };
+      const { id, timestamp, title, modules } = JSON.parse(raw);
+      return { id, timestamp, title, modules, filename: f };
     });
 
     res.json(list);
@@ -125,8 +198,7 @@ app.get('/api/admin/summaries/:filename', requireAdminAuth, (req, res) => {
   if (!filename.endsWith('.json')) return res.status(400).json({ error: 'Ungültige Datei' });
   const filePath = path.join(SUMMARIES_DIR, filename);
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Nicht gefunden' });
-  const record = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-  res.json(record);
+  res.json(JSON.parse(fs.readFileSync(filePath, 'utf-8')));
 });
 
 // ── Knowledge base ─────────────────────────────────────────────────────────────
@@ -137,22 +209,20 @@ async function loadKnowledgeBase() {
   const knowledgeDir = path.join(__dirname, 'knowledge');
   if (!fs.existsSync(knowledgeDir)) {
     fs.mkdirSync(knowledgeDir, { recursive: true });
-    console.log('Created knowledge/ directory');
     return;
   }
 
   const files = fs.readdirSync(knowledgeDir);
   const supported = files.filter(f => /\.(pdf|txt|md)$/i.test(f));
-
   const chunks = [];
+
   for (const file of supported) {
     const filePath = path.join(knowledgeDir, file);
     try {
       let text = '';
       if (file.toLowerCase().endsWith('.pdf')) {
         const pdfParse = (await import('pdf-parse')).default;
-        const buffer = fs.readFileSync(filePath);
-        const data = await pdfParse(buffer);
+        const data = await pdfParse(fs.readFileSync(filePath));
         text = data.text;
       } else {
         text = fs.readFileSync(filePath, 'utf-8');
@@ -169,31 +239,7 @@ async function loadKnowledgeBase() {
   console.log(`Knowledge base ready: ${knowledgeFiles.length} file(s)`);
 }
 
-const BASE_SYSTEM_PROMPT = `Du bist ein erfahrener Business-Analyst und Strategie-Berater bei GetYourCFO. Deine Aufgabe ist es, Workshop-Notizen und Transkripte präzise und strukturiert zusammenzufassen.
-
-Analysiere den eingereichten Workshop-Inhalt und gib eine strukturierte Zusammenfassung als JSON zurück.
-
-Das JSON muss exakt diesem Schema folgen:
-{
-  "kontext_ziel": "Kurze Beschreibung des Workshop-Kontexts und Ziels (2-4 Sätze)",
-  "kernentscheidungen": ["Entscheidung 1", "Entscheidung 2", ...],
-  "aktionspunkte": [
-    {"aufgabe": "Aufgabenbeschreibung", "verantwortlich": "Name oder null", "frist": "Datum/Zeitraum oder null"},
-    ...
-  ],
-  "offene_fragen": ["Frage 1", "Frage 2", ...],
-  "okr_strategie_insights": ["Insight 1", "Insight 2", ...],
-  "stimmung_team": "Qualitative Beschreibung der Teamstimmung und Alignment (2-3 Sätze)"
-}
-
-Regeln:
-- Antworte NUR mit dem JSON-Objekt, ohne Markdown-Codeblöcke oder zusätzlichen Text
-- Alle Werte auf Deutsch
-- Sei präzise und handlungsorientiert
-- Extrahiere nur tatsächlich genannte Informationen, erfinde nichts
-- Bei fehlenden Informationen für "verantwortlich" oder "frist" setze null`;
-
-// ── API routes (protected) ─────────────────────────────────────────────────────
+// ── API routes ─────────────────────────────────────────────────────────────────
 app.get('/api/knowledge', requireAuth, (req, res) => {
   res.json({ files: knowledgeFiles, count: knowledgeFiles.length });
 });
@@ -212,15 +258,25 @@ app.post('/api/summarize', requireAuth, upload.single('file'), async (req, res) 
   } else if (req.body.text) {
     workshopContent = req.body.text;
   } else {
-    return res.status(400).json({ error: 'Kein Inhalt übermittelt. Bitte Text eingeben oder Datei hochladen.' });
+    return res.status(400).json({ error: 'Kein Inhalt übermittelt.' });
   }
 
   if (workshopContent.trim().length < 50) {
     return res.status(400).json({ error: 'Der Inhalt ist zu kurz für eine sinnvolle Analyse.' });
   }
 
+  // Parse selected modules (JSON string from FormData or array from JSON body)
+  let selectedModules = req.body.modules;
+  if (typeof selectedModules === 'string') {
+    try { selectedModules = JSON.parse(selectedModules); } catch { selectedModules = ['workshop_summary']; }
+  }
+  if (!Array.isArray(selectedModules) || selectedModules.length === 0) {
+    selectedModules = ['workshop_summary'];
+  }
+  selectedModules = selectedModules.filter(m => MODULE_SCHEMAS[m]);
+
   const systemContent = [
-    { type: 'text', text: BASE_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
+    { type: 'text', text: buildSystemPrompt(selectedModules), cache_control: { type: 'ephemeral' } },
   ];
 
   if (knowledgeText) {
@@ -236,31 +292,23 @@ app.post('/api/summarize', requireAuth, upload.single('file'), async (req, res) 
       model: 'claude-sonnet-4-6',
       max_tokens: 4096,
       system: systemContent,
-      messages: [
-        {
-          role: 'user',
-          content: `Analysiere den folgenden Workshop-Inhalt und erstelle eine strukturierte Zusammenfassung:\n\n${workshopContent}`,
-        },
-      ],
+      messages: [{ role: 'user', content: `Analysiere den folgenden Workshop-Inhalt:\n\n${workshopContent}` }],
     });
 
     const rawText = response.content[0].text.trim();
-    let summary;
+    let results;
     try {
-      summary = JSON.parse(rawText);
+      results = JSON.parse(rawText);
     } catch {
       const match = rawText.match(/\{[\s\S]*\}/);
-      if (match) {
-        summary = JSON.parse(match[0]);
-      } else {
-        throw new Error('Claude hat kein gültiges JSON zurückgegeben.');
-      }
+      if (match) results = JSON.parse(match[0]);
+      else throw new Error('Claude hat kein gültiges JSON zurückgegeben.');
     }
 
-    const saved = saveSummary(summary);
+    const saved = saveSummary(results, selectedModules);
 
     res.json({
-      summary,
+      results,
       savedId: saved.id,
       usage: {
         input_tokens: response.usage.input_tokens,

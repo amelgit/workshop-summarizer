@@ -146,6 +146,17 @@
     .pdf-action { background: #f9f9f9; border-left: 3px solid #E8530A; padding: 10px 14px; margin-bottom: 8px; border-radius: 0 4px 4px 0; }
     .pdf-action-task { font-size: 11px; color: #1a1a1a; margin-bottom: 5px; }
     .pdf-action-meta { display: flex; gap: 12px; font-size: 10px; color: #888; }
+    .pdf-module-title { font-size: 13px; font-weight: 700; color: #E8530A; margin: 24px 0 10px; padding-bottom: 6px; border-bottom: 1px solid #f0f0f0; text-transform: uppercase; letter-spacing: 0.06em; }
+    .pdf-subsection-label { font-size: 9px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.08em; margin: 10px 0 4px; }
+    .pdf-okr { background: #f9f9f9; border-left: 3px solid #E8530A; padding: 10px 12px; margin-bottom: 8px; border-radius: 0 4px 4px 0; }
+    .pdf-okr-obj { font-size: 11px; font-weight: 600; color: #E8530A; margin-bottom: 6px; }
+    .pdf-okr-kr { font-size: 10px; color: #333; padding: 2px 0 2px 10px; border-left: 1px solid #ddd; margin-bottom: 2px; }
+    .pdf-okr-rationale { font-size: 10px; color: #888; font-style: italic; margin-top: 6px; }
+    .pdf-gap { background: #f9f9f9; padding: 8px 12px; margin-bottom: 6px; border-radius: 4px; border: 1px solid #eee; }
+    .pdf-gap-header { display: flex; justify-content: space-between; margin-bottom: 3px; }
+    .pdf-gap-area { font-size: 11px; font-weight: 600; color: #1a1a1a; }
+    .pdf-gap-severity { font-size: 9px; font-weight: 700; text-transform: uppercase; }
+    .pdf-gap-desc { font-size: 10px; color: #555; }
     .pdf-footer { margin-top: 40px; padding-top: 12px; border-top: 1px solid #eee; font-size: 9px; color: #bbb; text-align: center; }
   </style>
 </head>
@@ -295,47 +306,123 @@
     renderSummaryBody(body, record);
   }
 
-  function renderSummaryBody(body, record) {
-    const s = record.summary;
-    const actionsHtml = (s.aktionspunkte || []).length === 0
-      ? '<div style="font-size:0.82rem;color:var(--text-dim)">Keine Aktionspunkte</div>'
-      : (s.aktionspunkte || []).map(a => `
-          <div class="action-item">
-            <div class="action-task">${escHtml(a.aufgabe)}</div>
-            <div class="action-meta">
-              ${a.verantwortlich ? `<span class="action-badge owner">👤 ${escHtml(a.verantwortlich)}</span>` : ''}
-              ${a.frist ? `<span class="action-badge deadline">📅 ${escHtml(a.frist)}</span>` : ''}
-            </div>
-          </div>`).join('');
+  const MODULE_META = {
+    workshop_summary:  { icon: '📋', label: 'Workshop Summary' },
+    okr_derivation:    { icon: '🎯', label: 'OKRs ableiten' },
+    critical_analysis: { icon: '⚠️', label: 'Was machen wir falsch' },
+    strategic_gaps:    { icon: '🔍', label: 'Strategische Lücken' },
+    team_alignment:    { icon: '🤝', label: 'Team Alignment Check' },
+  };
 
-    body.innerHTML = `
-      <div class="result-section">
-        <div class="result-section-title">Kontext &amp; Ziel</div>
-        <div class="result-text">${escHtml(s.kontext_ziel || '–')}</div>
-      </div>
-      <div class="result-section">
-        <div class="result-section-title">Kernentscheidungen</div>
-        <ul class="result-list">${(s.kernentscheidungen || []).map(e => `<li>${escHtml(e)}</li>`).join('') || '<li>–</li>'}</ul>
-      </div>
-      <div class="result-section">
-        <div class="result-section-title">Aktionspunkte</div>
-        ${actionsHtml}
-      </div>
-      <div class="result-section">
-        <div class="result-section-title">Offene Fragen</div>
-        <ul class="result-list">${(s.offene_fragen || []).map(f => `<li>${escHtml(f)}</li>`).join('') || '<li>–</li>'}</ul>
-      </div>
-      <div class="result-section">
-        <div class="result-section-title">OKR &amp; Strategie-Insights</div>
-        <ul class="result-list">${(s.okr_strategie_insights || []).map(i => `<li>${escHtml(i)}</li>`).join('') || '<li>–</li>'}</ul>
-      </div>
-      <div class="result-section">
-        <div class="result-section-title">Stimmung &amp; Team-Alignment</div>
-        <div class="result-text">${escHtml(s.stimmung_team || '–')}</div>
+  function renderList(arr) {
+    if (!arr?.length) return '<div style="font-size:0.82rem;color:var(--text-dim);font-style:italic">Keine Einträge</div>';
+    return `<ul class="result-list">${arr.map(i => `<li>${escHtml(i)}</li>`).join('')}</ul>`;
+  }
+
+  function renderModuleBlock(moduleId, data) {
+    switch (moduleId) {
+      case 'workshop_summary': {
+        const actions = data.aktionspunkte?.length
+          ? data.aktionspunkte.map(a => `
+              <div class="action-item">
+                <div class="action-task">${escHtml(a.aufgabe)}</div>
+                <div class="action-meta">
+                  ${a.verantwortlich ? `<span class="action-badge owner">👤 ${escHtml(a.verantwortlich)}</span>` : ''}
+                  ${a.frist ? `<span class="action-badge deadline">📅 ${escHtml(a.frist)}</span>` : ''}
+                </div>
+              </div>`).join('')
+          : '<div style="font-size:0.82rem;color:var(--text-dim)">Keine Aktionspunkte</div>';
+        return `
+          <div style="margin-bottom:14px"><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Kontext &amp; Ziel</div><div class="result-text">${escHtml(data.kontext_ziel||'–')}</div></div>
+          <div style="margin-bottom:14px"><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Kernentscheidungen</div>${renderList(data.kernentscheidungen)}</div>
+          <div style="margin-bottom:14px"><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Aktionspunkte</div>${actions}</div>
+          <div style="margin-bottom:14px"><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Offene Fragen</div>${renderList(data.offene_fragen)}</div>
+          <div style="margin-bottom:14px"><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">OKR &amp; Strategie-Insights</div>${renderList(data.okr_strategie_insights)}</div>
+          <div><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Stimmung</div><div class="result-text">${escHtml(data.stimmung_team||'–')}</div></div>`;
+      }
+      case 'okr_derivation':
+        return (data.objectives||[]).map((obj,i) => `
+          <div class="action-item">
+            <div style="font-size:0.88rem;font-weight:600;color:var(--orange);margin-bottom:8px">O${i+1}: ${escHtml(obj.objective)}</div>
+            ${(obj.key_results||[]).map((kr,j) => `<div style="font-size:0.82rem;color:var(--text);padding:3px 0 3px 12px;border-left:2px solid var(--border)">KR${j+1}: ${escHtml(kr)}</div>`).join('')}
+            ${obj.begruendung ? `<div style="font-size:0.78rem;color:var(--text-muted);font-style:italic;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">${escHtml(obj.begruendung)}</div>` : ''}
+          </div>`).join('') || '<div style="font-size:0.82rem;color:var(--text-dim);font-style:italic">Keine OKRs</div>';
+      case 'critical_analysis':
+        return `
+          <div style="margin-bottom:14px"><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Blinde Flecken</div>${renderList(data.blinde_flecken)}</div>
+          <div style="margin-bottom:14px"><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Risiken</div>${renderList(data.risiken)}</div>
+          <div style="margin-bottom:14px"><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Widersprüche</div>${renderList(data.widersprueche)}</div>
+          <div><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Empfehlungen</div>${renderList(data.empfehlungen)}</div>`;
+      case 'strategic_gaps':
+        return `
+          ${(data.luecken||[]).map(l => `
+            <div class="action-item" style="margin-bottom:8px">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                <span style="font-size:0.85rem;font-weight:600">${escHtml(l.bereich)}</span>
+                <span style="font-size:0.65rem;font-weight:700;text-transform:uppercase;padding:2px 8px;border-radius:20px;${l.schwere==='hoch'?'color:#ff7070;background:rgba(255,100,100,.12);border:1px solid rgba(255,100,100,.3)':l.schwere==='mittel'?'color:#f0b429;background:rgba(240,180,41,.12);border:1px solid rgba(240,180,41,.3)':'color:#5cb85c;background:rgba(92,184,92,.12);border:1px solid rgba(92,184,92,.3)'}">${escHtml(l.schwere)}</span>
+              </div>
+              <div style="font-size:0.82rem;color:var(--text-muted)">${escHtml(l.beschreibung)}</div>
+            </div>`).join('')}
+          <div style="margin-top:12px"><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Fehlende Elemente</div>${renderList(data.fehlende_elemente)}</div>`;
+      case 'team_alignment':
+        return `
+          <div style="margin-bottom:14px"><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Gesamtbewertung</div><div class="result-text">${escHtml(data.alignment_bewertung||'–')}</div></div>
+          <div style="margin-bottom:14px"><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Einigkeit bei Themen</div>${renderList(data.einigkeit_themen)}</div>
+          <div style="margin-bottom:14px"><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Spannungsfelder</div>${renderList(data.spannungsfelder)}</div>
+          <div><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Empfehlung</div><div class="result-text">${escHtml(data.empfehlung||'–')}</div></div>`;
+      default: return '';
+    }
+  }
+
+  function renderSummaryBody(body, record) {
+    // Support both new format (results) and old format (summary)
+    const results = record.results || (record.summary ? { workshop_summary: record.summary } : {});
+
+    body.innerHTML = Object.entries(results).map(([moduleId, data]) => {
+      const meta = MODULE_META[moduleId] || { icon: '•', label: moduleId };
+      return `<div style="margin-top:16px">
+        <div class="result-section-title">${meta.icon} &nbsp;${meta.label.toUpperCase()}</div>
+        ${renderModuleBlock(moduleId, data)}
       </div>`;
+    }).join('');
   }
 
   // ── PDF export ──────────────────────────────────────────────────────────────
+  function pdfList(arr) {
+    if (!arr?.length) return '<p class="pdf-text" style="color:#999">Keine Einträge</p>';
+    return `<ul class="pdf-list">${arr.map(i => `<li>${escHtml(i)}</li>`).join('')}</ul>`;
+  }
+
+  function pdfModuleSection(moduleId, data) {
+    const meta = MODULE_META[moduleId] || { icon: '', label: moduleId };
+    let content = '';
+    switch (moduleId) {
+      case 'workshop_summary':
+        content = `
+          <div class="pdf-subsection-label">Kontext &amp; Ziel</div><p class="pdf-text">${escHtml(data.kontext_ziel||'–')}</p>
+          <div class="pdf-subsection-label">Kernentscheidungen</div>${pdfList(data.kernentscheidungen)}
+          <div class="pdf-subsection-label">Aktionspunkte</div>
+          ${(data.aktionspunkte||[]).map(a => `<div class="pdf-action"><div class="pdf-action-task">${escHtml(a.aufgabe)}</div><div class="pdf-action-meta">${a.verantwortlich?`<span>👤 ${escHtml(a.verantwortlich)}</span>`:''} ${a.frist?`<span>📅 ${escHtml(a.frist)}</span>`:''}</div></div>`).join('')||'<p class="pdf-text" style="color:#999">Keine</p>'}
+          <div class="pdf-subsection-label">Offene Fragen</div>${pdfList(data.offene_fragen)}
+          <div class="pdf-subsection-label">OKR-Insights</div>${pdfList(data.okr_strategie_insights)}
+          <div class="pdf-subsection-label">Stimmung</div><p class="pdf-text">${escHtml(data.stimmung_team||'–')}</p>`;
+        break;
+      case 'okr_derivation':
+        content = (data.objectives||[]).map((obj,i) => `<div class="pdf-okr"><div class="pdf-okr-obj">O${i+1}: ${escHtml(obj.objective)}</div>${(obj.key_results||[]).map((kr,j)=>`<div class="pdf-okr-kr">KR${j+1}: ${escHtml(kr)}</div>`).join('')}${obj.begruendung?`<div class="pdf-okr-rationale">${escHtml(obj.begruendung)}</div>`:''}</div>`).join('')||'<p class="pdf-text" style="color:#999">Keine OKRs</p>';
+        break;
+      case 'critical_analysis':
+        content = `<div class="pdf-subsection-label">Blinde Flecken</div>${pdfList(data.blinde_flecken)}<div class="pdf-subsection-label">Risiken</div>${pdfList(data.risiken)}<div class="pdf-subsection-label">Widersprüche</div>${pdfList(data.widersprueche)}<div class="pdf-subsection-label">Empfehlungen</div>${pdfList(data.empfehlungen)}`;
+        break;
+      case 'strategic_gaps':
+        content = (data.luecken||[]).map(l=>`<div class="pdf-gap"><div class="pdf-gap-header"><span class="pdf-gap-area">${escHtml(l.bereich)}</span><span class="pdf-gap-severity">${escHtml(l.schwere)}</span></div><div class="pdf-gap-desc">${escHtml(l.beschreibung)}</div></div>`).join('')+`<div class="pdf-subsection-label">Fehlende Elemente</div>${pdfList(data.fehlende_elemente)}`;
+        break;
+      case 'team_alignment':
+        content = `<p class="pdf-text">${escHtml(data.alignment_bewertung||'–')}</p><div class="pdf-subsection-label">Einigkeit</div>${pdfList(data.einigkeit_themen)}<div class="pdf-subsection-label">Spannungsfelder</div>${pdfList(data.spannungsfelder)}<div class="pdf-subsection-label">Empfehlung</div><p class="pdf-text">${escHtml(data.empfehlung||'–')}</p>`;
+        break;
+    }
+    return `<div class="pdf-module-title">${meta.icon} ${meta.label}</div>${content}`;
+  }
+
   async function downloadPdf(filename) {
     let record = Object.values(loadedItems).find(r => r.id && filename.startsWith(r.id));
     if (!record) {
@@ -343,22 +430,8 @@
       record = await res.json();
     }
 
-    const s = record.summary;
+    const results = record.results || (record.summary ? { workshop_summary: record.summary } : {});
     const dateStr = formatDate(record.timestamp);
-
-    const actionsHtml = (s.aktionspunkte || []).map(a => `
-      <div class="pdf-action">
-        <div class="pdf-action-task">${escHtml(a.aufgabe)}</div>
-        <div class="pdf-action-meta">
-          ${a.verantwortlich ? `<span>👤 ${escHtml(a.verantwortlich)}</span>` : ''}
-          ${a.frist ? `<span>📅 ${escHtml(a.frist)}</span>` : ''}
-        </div>
-      </div>`).join('') || '<p class="pdf-text" style="color:#999">Keine Aktionspunkte</p>';
-
-    const listHtml = (arr, fallback) =>
-      arr && arr.length
-        ? `<ul class="pdf-list">${arr.map(i => `<li>${escHtml(i)}</li>`).join('')}</ul>`
-        : `<p class="pdf-text" style="color:#999">${fallback}</p>`;
 
     const tmpl = document.getElementById('pdf-template');
     tmpl.innerHTML = `
@@ -369,38 +442,13 @@
         </div>
         <div class="pdf-date">Erstellt: ${dateStr}</div>
       </div>
-      <div class="pdf-title">Workshop-Zusammenfassung</div>
-      <div class="pdf-section">
-        <div class="pdf-section-title">[ 01 · Kontext &amp; Ziel ]</div>
-        <p class="pdf-text">${escHtml(s.kontext_ziel || '–')}</p>
-      </div>
-      <div class="pdf-section">
-        <div class="pdf-section-title">[ 02 · Kernentscheidungen ]</div>
-        ${listHtml(s.kernentscheidungen, 'Keine Kernentscheidungen')}
-      </div>
-      <div class="pdf-section">
-        <div class="pdf-section-title">[ 03 · Aktionspunkte ]</div>
-        ${actionsHtml}
-      </div>
-      <div class="pdf-section">
-        <div class="pdf-section-title">[ 04 · Offene Fragen ]</div>
-        ${listHtml(s.offene_fragen, 'Keine offenen Fragen')}
-      </div>
-      <div class="pdf-section">
-        <div class="pdf-section-title">[ 05 · OKR &amp; Strategie-Insights ]</div>
-        ${listHtml(s.okr_strategie_insights, 'Keine OKR-Relevanz')}
-      </div>
-      <div class="pdf-section">
-        <div class="pdf-section-title">[ 06 · Stimmung &amp; Team-Alignment ]</div>
-        <p class="pdf-text">${escHtml(s.stimmung_team || '–')}</p>
-      </div>
+      ${Object.entries(results).map(([id, data]) => pdfModuleSection(id, data)).join('')}
       <div class="pdf-footer">Vertraulich · Workshop Summarizer by GetYourCFO · ${dateStr}</div>`;
 
     tmpl.style.display = 'block';
-    const safeDate = dateStr.replace(/\./g, '-');
     html2pdf().set({
       margin: 0,
-      filename: `workshop-${safeDate}.pdf`,
+      filename: `workshop-${dateStr.replace(/\./g,'-')}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: { scale: 2, useCORS: true },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
