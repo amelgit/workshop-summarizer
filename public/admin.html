@@ -200,16 +200,20 @@
   let adminToken = sessionStorage.getItem('admin_token');
 
   async function initAuth() {
-    const res = await fetch('/api/admin/summaries', {
-      headers: adminToken ? { 'x-admin-token': adminToken } : {},
-    });
-    if (res.status === 401) {
-      sessionStorage.removeItem('admin_token');
-      adminToken = null;
-      document.getElementById('login-overlay').classList.add('visible');
-    } else {
-      const data = await res.json();
-      renderList(data);
+    try {
+      const res = await fetch('/api/admin/summaries', {
+        headers: adminToken ? { 'x-admin-token': adminToken } : {},
+      });
+      if (res.status === 401) {
+        sessionStorage.removeItem('admin_token');
+        adminToken = null;
+        document.getElementById('login-overlay').classList.add('visible');
+      } else {
+        const data = await res.json();
+        renderList(Array.isArray(data) ? data : []);
+      }
+    } catch (err) {
+      showListError(err.message);
     }
   }
 
@@ -243,9 +247,19 @@
 
   // ── List ────────────────────────────────────────────────────────────────────
   async function loadSummaries() {
-    const res = await fetch('/api/admin/summaries', { headers: authHeaders() });
-    const data = await res.json();
-    renderList(data);
+    try {
+      const res = await fetch('/api/admin/summaries', { headers: authHeaders() });
+      if (!res.ok) throw new Error(`Server error ${res.status}`);
+      const data = await res.json();
+      renderList(Array.isArray(data) ? data : []);
+    } catch (err) {
+      showListError(err.message);
+    }
+  }
+
+  function showListError(msg) {
+    document.getElementById('summary-list').innerHTML =
+      `<div style="padding:40px;text-align:center;font-size:0.85rem;color:#ff7070">Fehler beim Laden: ${escHtml(msg)}</div>`;
   }
 
   function renderList(items) {
