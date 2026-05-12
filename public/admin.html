@@ -328,7 +328,7 @@
     team_alignment:    { icon: '🤝', label: 'Team Alignment Check' },
   };
 
-  function renderList(arr) {
+  function renderBulletList(arr) {
     if (!arr?.length) return '<div style="font-size:0.82rem;color:var(--text-dim);font-style:italic">Keine Einträge</div>';
     return `<ul class="result-list">${arr.map(i => `<li>${escHtml(i)}</li>`).join('')}</ul>`;
   }
@@ -348,10 +348,10 @@
           : '<div style="font-size:0.82rem;color:var(--text-dim)">Keine Aktionspunkte</div>';
         return `
           <div style="margin-bottom:14px"><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Kontext &amp; Ziel</div><div class="result-text">${escHtml(data.kontext_ziel||'–')}</div></div>
-          <div style="margin-bottom:14px"><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Kernentscheidungen</div>${renderList(data.kernentscheidungen)}</div>
+          <div style="margin-bottom:14px"><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Kernentscheidungen</div>${renderBulletList(data.kernentscheidungen)}</div>
           <div style="margin-bottom:14px"><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Aktionspunkte</div>${actions}</div>
-          <div style="margin-bottom:14px"><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Offene Fragen</div>${renderList(data.offene_fragen)}</div>
-          <div style="margin-bottom:14px"><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">OKR &amp; Strategie-Insights</div>${renderList(data.okr_strategie_insights)}</div>
+          <div style="margin-bottom:14px"><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Offene Fragen</div>${renderBulletList(data.offene_fragen)}</div>
+          <div style="margin-bottom:14px"><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">OKR &amp; Strategie-Insights</div>${renderBulletList(data.okr_strategie_insights)}</div>
           <div><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Stimmung</div><div class="result-text">${escHtml(data.stimmung_team||'–')}</div></div>`;
       }
       case 'okr_derivation':
@@ -363,10 +363,10 @@
           </div>`).join('') || '<div style="font-size:0.82rem;color:var(--text-dim);font-style:italic">Keine OKRs</div>';
       case 'critical_analysis':
         return `
-          <div style="margin-bottom:14px"><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Blinde Flecken</div>${renderList(data.blinde_flecken)}</div>
-          <div style="margin-bottom:14px"><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Risiken</div>${renderList(data.risiken)}</div>
-          <div style="margin-bottom:14px"><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Widersprüche</div>${renderList(data.widersprueche)}</div>
-          <div><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Empfehlungen</div>${renderList(data.empfehlungen)}</div>`;
+          <div style="margin-bottom:14px"><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Blinde Flecken</div>${renderBulletList(data.blinde_flecken)}</div>
+          <div style="margin-bottom:14px"><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Risiken</div>${renderBulletList(data.risiken)}</div>
+          <div style="margin-bottom:14px"><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Widersprüche</div>${renderBulletList(data.widersprueche)}</div>
+          <div><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Empfehlungen</div>${renderBulletList(data.empfehlungen)}</div>`;
       case 'strategic_gaps':
         return `
           ${(data.luecken||[]).map(l => `
@@ -377,12 +377,12 @@
               </div>
               <div style="font-size:0.82rem;color:var(--text-muted)">${escHtml(l.beschreibung)}</div>
             </div>`).join('')}
-          <div style="margin-top:12px"><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Fehlende Elemente</div>${renderList(data.fehlende_elemente)}</div>`;
+          <div style="margin-top:12px"><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Fehlende Elemente</div>${renderBulletList(data.fehlende_elemente)}</div>`;
       case 'team_alignment':
         return `
           <div style="margin-bottom:14px"><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Gesamtbewertung</div><div class="result-text">${escHtml(data.alignment_bewertung||'–')}</div></div>
-          <div style="margin-bottom:14px"><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Einigkeit bei Themen</div>${renderList(data.einigkeit_themen)}</div>
-          <div style="margin-bottom:14px"><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Spannungsfelder</div>${renderList(data.spannungsfelder)}</div>
+          <div style="margin-bottom:14px"><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Einigkeit bei Themen</div>${renderBulletList(data.einigkeit_themen)}</div>
+          <div style="margin-bottom:14px"><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Spannungsfelder</div>${renderBulletList(data.spannungsfelder)}</div>
           <div><div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Empfehlung</div><div class="result-text">${escHtml(data.empfehlung||'–')}</div></div>`;
       default: return '';
     }
